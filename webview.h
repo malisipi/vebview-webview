@@ -477,6 +477,7 @@ public:
     WebKitSettings *settings =
         webkit_web_view_get_settings(WEBKIT_WEB_VIEW(m_webview));
     webkit_settings_set_javascript_can_access_clipboard(settings, true);
+    webkit_settings_set_allow_universal_access_from_file_urls(settings,true);
     if (debug) {
       webkit_settings_set_enable_write_console_messages_to_stdout(settings,
                                                                   true);
@@ -946,6 +947,22 @@ using browser_engine = detail::cocoa_wkwebview_engine;
 
 #include "WebView2.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#if defined(_WIN32)
+WEBVIEW_API void SetPngIconForWindow(HWND hwnd, char* icon_src){
+  HANDLE hIcon = LoadImage(0, icon_src, IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_LOADFROMFILE);
+  SendMessage(hwnd, WM_SETICON, ICON_SMALL,(LPARAM) hIcon);
+  SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM) hIcon);
+}
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
 #ifdef _MSC_VER
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "shell32.lib")
@@ -1216,12 +1233,21 @@ public:
       HICON icon = (HICON)LoadImage(
           hInstance, IDI_APPLICATION, IMAGE_ICON, GetSystemMetrics(SM_CXICON),
           GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR);
-
+      static int webview_id = 0;
+      char webview_id_int_str[8];
+      std::string webview_id_string;
+      webview_id++;
+      sprintf(webview_id_int_str, "%d", webview_id);
+      char webview_id_str[15] = "webview";
+      strcat(webview_id_str, webview_id_int_str);
+      webview_id_string.assign(webview_id_str, 15);
+      std::wstring widestr = std::wstring(webview_id_string.begin(), webview_id_string.end());
+      const wchar_t* webview_id_lpcwstr = widestr.c_str();;
       WNDCLASSEXW wc;
       ZeroMemory(&wc, sizeof(WNDCLASSEX));
       wc.cbSize = sizeof(WNDCLASSEX);
       wc.hInstance = hInstance;
-      wc.lpszClassName = L"webview";
+      wc.lpszClassName = webview_id_lpcwstr;
       wc.hIcon = icon;
       wc.lpfnWndProc =
           (WNDPROC)(+[](HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) -> LRESULT {
@@ -1255,7 +1281,7 @@ public:
             return 0;
           });
       RegisterClassExW(&wc);
-      m_window = CreateWindowW(L"webview", L"", WS_OVERLAPPEDWINDOW,
+      m_window = CreateWindowW(webview_id_lpcwstr, L"", WS_OVERLAPPEDWINDOW,
                                CW_USEDEFAULT, CW_USEDEFAULT, 640, 480, nullptr,
                                nullptr, hInstance, nullptr);
       if (m_window == nullptr) {
